@@ -82,7 +82,7 @@ export const useTextLogic = ({ position, scale, isDrawing, setIsDrawing, setShap
           text: 'Text',
           fontSize: textOptions.fontSize,
           fontFamily: textOptions.fontFamily,
-          fontStyle: textOptions.fontStyle,
+          fontStyles: textOptions.fontStyles,
           align: textOptions.align,
           width: textOptions.width,
           padding: textOptions.padding,

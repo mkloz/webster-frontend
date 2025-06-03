@@ -85,7 +85,7 @@ export const useProjectDuplicate = () => {
         }, 1000);
       }
     },
-    onSuccess: (newProject, sourceProject) => {
+    onSuccess: (_, sourceProject) => {
       queryClient.invalidateQueries({ queryKey: [QueryKeys.PROJECTS] });
       toast.success(`Created "${sourceProject.name} (Copy)"`);
     },
