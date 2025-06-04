@@ -1,5 +1,9 @@
+'use client';
+
 import type { KonvaEventObject } from 'konva/lib/Node';
-import { useCallback, useEffect } from 'react';
+import type React from 'react';
+import { useCallback, useEffect, useRef } from 'react';
+import { flushSync } from 'react-dom';
 import { useHotkeys } from 'react-hotkeys-hook';
 
 import { useCanvasStore } from '../../../shared/store/canvas-store';
@@ -16,6 +20,8 @@ export const useStageZoom = ({ setPosition, containerRef, position }: StageZoomH
   const { width, height, scale, setScale, shouldResetScale } = useCanvasStore();
   const { stageRef } = useCanvasContext();
   const { isPanMode } = usePanMode();
+
+  const animationFrameRef = useRef<number | null>(null);
 
   const handleWheel = (e: KonvaEventObject<WheelEvent>) => {
     if (!e.evt.ctrlKey && e.evt.button !== 1) {
@@ -45,8 +51,19 @@ export const useStageZoom = ({ setPosition, containerRef, position }: StageZoomH
       y: pointer.y - mousePointTo.y * limitedScale
     };
 
-    setScale(limitedScale);
-    setPosition(newPos);
+    // Cancel any pending animation frame
+    if (animationFrameRef.current !== null) {
+      cancelAnimationFrame(animationFrameRef.current);
+    }
+
+    // Use flushSync to force synchronous updates and prevent batching issues
+    flushSync(() => {
+      setScale(limitedScale);
+    });
+
+    flushSync(() => {
+      setPosition(newPos);
+    });
   };
 
   const resetView = useCallback(() => {
@@ -59,16 +76,34 @@ export const useStageZoom = ({ setPosition, containerRef, position }: StageZoomH
     const scaleY = containerHeight / height;
     const newScale = Math.min(scaleX, scaleY) * 0.8;
 
-    setScale(newScale);
-    setPosition({
+    const newPos = {
       x: (containerWidth - width * newScale) / 2,
       y: (containerHeight - height * newScale) / 2
+    };
+
+    // Use flushSync for reset too
+    flushSync(() => {
+      setScale(newScale);
     });
-  }, [width, height, setScale]);
+
+    flushSync(() => {
+      setPosition(newPos);
+    });
+  }, [width, height, setScale, setPosition, containerRef]);
+
+  // Clean up on unmount
+  useEffect(() => {
+    return () => {
+      if (animationFrameRef.current !== null) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     resetView();
   }, [shouldResetScale, resetView]);
+
   useHotkeys('ctrl+0', resetView, [resetView]);
 
   const handleDragStart = () => {
