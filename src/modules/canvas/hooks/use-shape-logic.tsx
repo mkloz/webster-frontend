@@ -155,7 +155,7 @@ export const useShapeLogic = () => {
       height: shape.shapeSize
     };
 
-    let newShape;
+    let newShape: Shape;
 
     // Create the appropriate shape type
     if (shapeType === 'star') {
