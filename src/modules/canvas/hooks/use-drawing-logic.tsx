@@ -9,6 +9,7 @@ import { useCanvasStore } from '@/shared/store/canvas-store';
 
 import { useToolOptionsStore } from '../hooks/tool-optios-store';
 import type { Shape } from './shapes-store';
+import { useShapesStore } from './shapes-store';
 import { useCanvasHistory } from './use-canvas-history';
 
 interface UseDrawingLogicProps {
@@ -24,6 +25,7 @@ export const useDrawingLogic = ({ position, scale, isDrawing, setIsDrawing, setS
   const { activeTool } = useLeftSidebarStore();
   const { pen, eraser } = useToolOptionsStore();
   const { saveToHistory } = useCanvasHistory();
+  const { setActivelyDrawing } = useShapesStore();
   const lastPointRef = useRef<{ x: number; y: number } | null>(null);
   const drawingStartedRef = useRef(false);
   const erasedObjectsRef = useRef<Set<string>>(new Set());
@@ -73,15 +75,48 @@ export const useDrawingLogic = ({ position, scale, isDrawing, setIsDrawing, setS
     return Math.sqrt(dx * dx + dy * dy);
   };
 
-  // Check if eraser collides with any shapes based on geometric calculations
+  // Helper function to check if point is inside polygon using ray casting
+  const isPointInPolygon = (px: number, py: number, points: number[]): boolean => {
+    let inside = false;
+    for (let i = 0, j = points.length - 2; i < points.length; j = i, i += 2) {
+      const xi = points[i];
+      const yi = points[i + 1];
+      const xj = points[j];
+      const yj = points[j + 1];
+
+      if (yi > py !== yj > py && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi) {
+        inside = !inside;
+      }
+    }
+    return inside;
+  };
+
+  // Helper function to get minimum distance from point to polygon edges
+  const distanceToPolygon = (px: number, py: number, points: number[]): number => {
+    let minDistance = Number.POSITIVE_INFINITY;
+
+    for (let i = 0; i < points.length - 2; i += 2) {
+      const x1 = points[i];
+      const y1 = points[i + 1];
+      const x2 = points[i + 2];
+      const y2 = points[i + 3];
+
+      const dist = distanceToLineSegment(px, py, x1, y1, x2, y2);
+      minDistance = Math.min(minDistance, dist);
+    }
+
+    return minDistance;
+  };
+
+  // Check if eraser collides with any shapes - moved outside setShapes for better performance
   const checkObjectEraserCollision = (eraserX: number, eraserY: number) => {
     if (eraser.eraserType !== 'object') return;
 
     const eraserRadius = eraser.eraserSize / 2;
+    const shapesToRemove: string[] = [];
 
+    // Get current shapes to check collision
     setShapes((prevShapes) => {
-      const shapesToRemove: string[] = [];
-
       prevShapes.forEach((shape) => {
         // Skip if already erased in this drag session
         if (erasedObjectsRef.current.has(shape.id)) return;
@@ -89,19 +124,27 @@ export const useDrawingLogic = ({ position, scale, isDrawing, setIsDrawing, setS
         let shouldErase = false;
 
         switch (shape.type) {
-          case 'rectangle': {
-            const halfSize = shape.size / 2;
-            const closestX = Math.max(shape.x - halfSize, Math.min(eraserX, shape.x + halfSize));
-            const closestY = Math.max(shape.y - halfSize, Math.min(eraserY, shape.y + halfSize));
+          case 'rectangle':
+          case 'square': {
+            const actualWidth = shape.width || shape.size || 100;
+            const actualHeight = shape.height || shape.size || 100;
+            const halfWidth = actualWidth / 2;
+            const halfHeight = actualHeight / 2;
+            const closestX = Math.max(shape.x - halfWidth, Math.min(eraserX, shape.x + halfWidth));
+            const closestY = Math.max(shape.y - halfHeight, Math.min(eraserY, shape.y + halfHeight));
             const distanceToRect = Math.sqrt((eraserX - closestX) ** 2 + (eraserY - closestY) ** 2);
             shouldErase = distanceToRect <= eraserRadius;
             break;
           }
 
-          case 'circle': {
-            const shapeRadius = shape.size / 2;
+          case 'circle':
+          case 'round': {
+            const actualWidth = shape.width || shape.size || 100;
+            const actualHeight = shape.height || shape.size || 100;
+            const radiusX = actualWidth / 2;
+            const radiusY = actualHeight / 2;
             const distanceToCenter = Math.sqrt((eraserX - shape.x) ** 2 + (eraserY - shape.y) ** 2);
-            shouldErase = distanceToCenter <= eraserRadius + shapeRadius;
+            shouldErase = distanceToCenter <= eraserRadius + Math.max(radiusX, radiusY);
             break;
           }
 
@@ -119,8 +162,8 @@ export const useDrawingLogic = ({ position, scale, isDrawing, setIsDrawing, setS
           }
 
           case 'image': {
-            const imgWidth = shape.width || shape.size;
-            const imgHeight = shape.height || shape.size;
+            const imgWidth = shape.width || shape.size || 100;
+            const imgHeight = shape.height || shape.size || 100;
             const halfWidth = imgWidth / 2;
             const halfHeight = imgHeight / 2;
             const closestX = Math.max(shape.x - halfWidth, Math.min(eraserX, shape.x + halfWidth));
@@ -133,8 +176,9 @@ export const useDrawingLogic = ({ position, scale, isDrawing, setIsDrawing, setS
           case 'line': {
             // For line shapes (drawn with pen/eraser), the points array contains the actual path
             if (shape.points && shape.points.length >= 2) {
-              // EXTREMELY generous collision detection for testing
-              const VERY_LARGE_THRESHOLD = 200; // 200 pixel radius!
+              // Collision detection for line strokes
+              const strokeWidth = shape.strokeWidth || shape.size || 2;
+              const COLLISION_THRESHOLD = eraserRadius + strokeWidth;
 
               // Check collision with each line segment
               for (let i = 0; i < shape.points.length - 2; i += 2) {
@@ -150,26 +194,9 @@ export const useDrawingLogic = ({ position, scale, isDrawing, setIsDrawing, setS
 
                 const distToLine = distanceToLineSegment(eraserX, eraserY, x1, y1, x2, y2);
 
-                if (distToLine <= VERY_LARGE_THRESHOLD) {
+                if (distToLine <= COLLISION_THRESHOLD) {
                   shouldErase = true;
                   break;
-                }
-              }
-
-              // Also check individual points with huge threshold
-              if (!shouldErase && shape.points.length >= 2) {
-                for (let i = 0; i < shape.points.length; i += 2) {
-                  const px = shape.points[i];
-                  const py = shape.points[i + 1];
-
-                  if (px !== undefined && py !== undefined) {
-                    const distToPoint = Math.sqrt((eraserX - px) ** 2 + (eraserY - py) ** 2);
-
-                    if (distToPoint <= VERY_LARGE_THRESHOLD) {
-                      shouldErase = true;
-                      break;
-                    }
-                  }
                 }
               }
             }
@@ -177,24 +204,40 @@ export const useDrawingLogic = ({ position, scale, isDrawing, setIsDrawing, setS
           }
 
           case 'polygon': {
-            // Handle fountain pen strokes (polygons)
+            // Handle fountain pen strokes (polygons) - improved collision detection
             if (shape.points && shape.points.length >= 6) {
-              // For polygons, check if eraser center is inside the polygon or close to edges
-              // Simple approach: check distance to polygon center first
-              const centerX = shape.x || 0;
-              const centerY = shape.y || 0;
-              const distanceToCenter = Math.sqrt((eraserX - centerX) ** 2 + (eraserY - centerY) ** 2);
-
-              // Use a generous collision area for polygons
-              const polygonRadius = Math.max(shape.size || 20, 20);
-              shouldErase = distanceToCenter <= eraserRadius + polygonRadius;
+              // Check if eraser point is inside the polygon
+              if (isPointInPolygon(eraserX, eraserY, shape.points)) {
+                shouldErase = true;
+              } else {
+                // Check distance to polygon edges
+                const distToEdges = distanceToPolygon(eraserX, eraserY, shape.points);
+                shouldErase = distToEdges <= eraserRadius;
+              }
             }
             break;
           }
 
+          case 'star': {
+            const shapeRadius = (shape.size || 100) / 2;
+            const distanceToCenter = Math.sqrt((eraserX - shape.x) ** 2 + (eraserY - shape.y) ** 2);
+            shouldErase = distanceToCenter <= eraserRadius + shapeRadius;
+            break;
+          }
+
+          case 'triangle':
+          case 'hexagon': {
+            const actualWidth = shape.width || shape.size || 100;
+            const actualHeight = shape.height || shape.size || 100;
+            const shapeRadius = Math.max(actualWidth, actualHeight) / 2;
+            const distanceToCenter = Math.sqrt((eraserX - shape.x) ** 2 + (eraserY - shape.y) ** 2);
+            shouldErase = distanceToCenter <= eraserRadius + shapeRadius;
+            break;
+          }
+
           default: {
-            // For all other shapes (star, triangle, hexagon, etc.)
-            const shapeRadius = shape.size / 2;
+            // For all other shapes
+            const shapeRadius = (shape.size || 100) / 2;
             const distanceToCenter = Math.sqrt((eraserX - shape.x) ** 2 + (eraserY - shape.y) ** 2);
             shouldErase = distanceToCenter <= eraserRadius + shapeRadius;
             break;
@@ -207,6 +250,7 @@ export const useDrawingLogic = ({ position, scale, isDrawing, setIsDrawing, setS
         }
       });
 
+      // Remove shapes that should be erased
       if (shapesToRemove.length > 0) {
         return prevShapes.filter((shape) => !shapesToRemove.includes(shape.id));
       }
@@ -233,25 +277,29 @@ export const useDrawingLogic = ({ position, scale, isDrawing, setIsDrawing, setS
 
     if (isEraser && eraser.eraserType === 'object') {
       setIsDrawing(true);
+      setActivelyDrawing(true);
       drawingStartedRef.current = true;
       erasedObjectsRef.current.clear();
 
-      // Check for collision on mouse down
+      // Check for collision on mouse down - immediate response
       checkObjectEraserCollision(localX, localY);
       return;
     }
 
     if (!isPen && !isEraser) return;
 
+    // Store original pen/eraser size (without scale adjustment)
+    // Scale adjustment will be applied during rendering
     const size = isPen ? pen.penSize : eraser.eraserSize;
     const color = isPen ? pen.penColor : '#000';
     const opacity = 1;
-    const margin = size / 2;
+    const margin = size / scale / 2; // Only apply scale to margin for boundary checking
 
     const x = clamp(localX, margin, width - margin);
     const y = clamp(localY, margin, height - margin);
 
     setIsDrawing(true);
+    setActivelyDrawing(true);
     drawingStartedRef.current = true;
     lastPointRef.current = { x, y };
 
@@ -264,7 +312,7 @@ export const useDrawingLogic = ({ position, scale, isDrawing, setIsDrawing, setS
           id: String(Date.now()),
           type: 'line',
           points: [x, y],
-          strokeWidth: size,
+          strokeWidth: size, // Store original size
           strokeColor: color,
           penType: isPen ? pen.penType : undefined,
           opacity,
@@ -297,7 +345,7 @@ export const useDrawingLogic = ({ position, scale, isDrawing, setIsDrawing, setS
     const isPen = activeTool === 'pen';
     const isEraser = activeTool === 'eraser';
 
-    // Handle object eraser drag
+    // Handle object eraser drag - immediate response
     if (isEraser && eraser.eraserType === 'object') {
       checkObjectEraserCollision(localX, localY);
       return;
@@ -305,10 +353,11 @@ export const useDrawingLogic = ({ position, scale, isDrawing, setIsDrawing, setS
 
     if (!isPen && !isEraser) return;
 
+    // Store original pen/eraser size (without scale adjustment)
     const size = isPen ? pen.penSize : eraser.eraserSize;
     const color = isPen ? pen.penColor : '#000';
     const opacity = 1;
-    const margin = size / 2;
+    const margin = size / scale / 2; // Only apply scale to margin for boundary checking
 
     const x = clamp(localX, margin, width - margin);
     const y = clamp(localY, margin, height - margin);
@@ -359,6 +408,7 @@ export const useDrawingLogic = ({ position, scale, isDrawing, setIsDrawing, setS
   const handleDrawMouseUp = () => {
     if (activeTool === 'pen' || activeTool === 'eraser') {
       setIsDrawing(false);
+      setActivelyDrawing(false);
       lastPointRef.current = null;
 
       if (drawingStartedRef.current) {

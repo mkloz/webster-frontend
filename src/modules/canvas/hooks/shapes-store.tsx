@@ -64,6 +64,7 @@ interface ShapesState {
   shapes: Shape[];
   selectedShapeIds: string[];
   isCreatingNewProject: boolean;
+  isActivelyDrawing: boolean; // Add this new property
   setShapes: React.Dispatch<React.SetStateAction<Shape[]>>;
   clearShapes: () => void;
   setSelectedShapeIds: (ids: string[]) => void;
@@ -75,6 +76,7 @@ interface ShapesState {
   updateShape: (id: string, updates: Partial<Shape>) => void;
   saveShapesState: () => void;
   setCreatingNewProject: (creating: boolean) => void;
+  setActivelyDrawing: (drawing: boolean) => void; // Add this new method
   duplicateSelectedShapes: () => void;
   duplicateShapes: (shapeIds: string[], offset?: { x: number; y: number }) => string[];
 }
@@ -121,10 +123,14 @@ const duplicateShape = (shape: Shape, offset: { x: number; y: number }): Shape =
   return newShape;
 };
 
+// Debounce function to prevent excessive saves
+let saveTimeout: NodeJS.Timeout | null = null;
+
 export const useShapesStore = create<ShapesState>((set, get) => ({
   shapes: [],
   selectedShapeIds: [],
   isCreatingNewProject: false,
+  isActivelyDrawing: false, // Add this initial state
 
   setShapes: (valueOrUpdater) =>
     set((state) => {
@@ -133,12 +139,17 @@ export const useShapesStore = create<ShapesState>((set, get) => ({
           ? (valueOrUpdater as (prev: Shape[]) => Shape[])(state.shapes)
           : valueOrUpdater;
 
-      // Don't auto-save if we're creating a new project
-      if (!state.isCreatingNewProject) {
-        // Schedule a save after shapes are updated
-        setTimeout(() => {
+      // Clear any existing timeout
+      if (saveTimeout) {
+        clearTimeout(saveTimeout);
+      }
+
+      // Don't auto-save if we're creating a new project OR actively drawing
+      if (!state.isCreatingNewProject && !state.isActivelyDrawing) {
+        // Debounced save after shapes are updated
+        saveTimeout = setTimeout(() => {
           get().saveShapesState();
-        }, 500);
+        }, 1000);
       }
 
       return { shapes: nextShapes };
@@ -178,12 +189,17 @@ export const useShapesStore = create<ShapesState>((set, get) => ({
     set((state) => {
       const updatedShapes = state.shapes.map((shape) => (shape.id === id ? { ...shape, ...updates } : shape));
 
-      // Don't auto-save if we're creating a new project
-      if (!state.isCreatingNewProject) {
-        // Auto-save when shapes are modified
-        setTimeout(() => {
+      // Clear any existing timeout
+      if (saveTimeout) {
+        clearTimeout(saveTimeout);
+      }
+
+      // Don't auto-save if we're creating a new project OR actively drawing
+      if (!state.isCreatingNewProject && !state.isActivelyDrawing) {
+        // Debounced auto-save when shapes are modified
+        saveTimeout = setTimeout(() => {
           get().saveShapesState();
-        }, 500);
+        }, 1000);
       }
 
       return { shapes: updatedShapes };
@@ -191,6 +207,23 @@ export const useShapesStore = create<ShapesState>((set, get) => ({
 
   setCreatingNewProject: (creating) => {
     set({ isCreatingNewProject: creating });
+  },
+
+  setActivelyDrawing: (drawing) => {
+    set({ isActivelyDrawing: drawing });
+
+    // If we just finished drawing, trigger a save after a short delay
+    if (!drawing) {
+      if (saveTimeout) {
+        clearTimeout(saveTimeout);
+      }
+      saveTimeout = setTimeout(() => {
+        const state = get();
+        if (!state.isCreatingNewProject && !state.isActivelyDrawing) {
+          state.saveShapesState();
+        }
+      }, 500); // Shorter delay after drawing completes
+    }
   },
 
   // Duplicate currently selected shapes
@@ -224,11 +257,16 @@ export const useShapesStore = create<ShapesState>((set, get) => ({
       shapes: [...currentState.shapes, ...duplicatedShapes]
     }));
 
+    // Clear any existing timeout
+    if (saveTimeout) {
+      clearTimeout(saveTimeout);
+    }
+
     // Auto-save if not creating a new project
     if (!state.isCreatingNewProject) {
-      setTimeout(() => {
+      saveTimeout = setTimeout(() => {
         get().saveShapesState();
-      }, 500);
+      }, 1000);
     }
 
     return duplicatedIds;
@@ -264,6 +302,7 @@ export const useShapesStore = create<ShapesState>((set, get) => ({
           }
         }
       }
+
       saveProjectFunction(name).catch(console.error);
     }
   }
