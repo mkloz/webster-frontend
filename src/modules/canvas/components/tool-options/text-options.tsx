@@ -9,11 +9,14 @@ import {
   Italic,
   MoveDown,
   MoveUp,
+  Plus,
   Trash2,
   Type
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+
+import { useCanvasStore } from '@/shared/store/canvas-store';
 
 import { ColorPicker } from '../../../../shared/components/common/color-picker';
 import { EnhancedSlider } from '../../../../shared/components/common/enhanced-slider';
@@ -22,8 +25,10 @@ import { Label } from '../../../../shared/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../../shared/components/ui/select';
 import { Separator } from '../../../../shared/components/ui/separator';
 import { Textarea } from '../../../../shared/components/ui/textarea';
+import type { Shape } from '../../hooks/shapes-store';
 import { useShapesStore } from '../../hooks/shapes-store';
 import { useToolOptionsStore } from '../../hooks/tool-optios-store';
+import { useCanvasHistory } from '../../hooks/use-canvas-history';
 
 const TEXT_ALIGNMENTS = [
   { value: 'left', icon: <AlignLeft className="h-4 w-4 mx-auto" /> },
@@ -48,6 +53,8 @@ const FONT_OPTIONS = [
 export function TextOptions() {
   const { text: textOptions, setToolOptions } = useToolOptionsStore();
   const { shapes, updateShape, selectedShapeIds, setShapes, setSelectedShapeIds } = useShapesStore();
+  const { width, height } = useCanvasStore();
+  const { saveToHistory } = useCanvasHistory();
   const [localText, setLocalText] = useState('');
 
   // Find the selected text shape if any
@@ -65,6 +72,40 @@ export function TextOptions() {
       setLocalText('');
     }
   }, [selectedTextShape]);
+
+  // Add text in center of canvas
+  const handleAddText = () => {
+    const newTextId = Date.now().toString();
+    const centerX = width / 2;
+    const centerY = height / 2;
+
+    const newText: Shape = {
+      id: newTextId,
+      type: 'text',
+      x: centerX,
+      y: centerY,
+      text: 'Text',
+      fontSize: textOptions.fontSize,
+      fontFamily: textOptions.fontFamily,
+      fontStyles: textOptions.fontStyles,
+      align: textOptions.align,
+      width: textOptions.width,
+      padding: textOptions.padding,
+      color: textOptions.textColor,
+      size: textOptions.fontSize,
+      opacity: 1
+    };
+
+    setShapes((prevShapes) => [...prevShapes, newText]);
+
+    // Select the new text element
+    setSelectedShapeIds([newTextId]);
+    setToolOptions('text', { selectedTextId: newTextId });
+
+    // Save to history
+    saveToHistory('Create text');
+    toast.success('Text added to canvas');
+  };
 
   const handleTextChange = (newText: string) => {
     setLocalText(newText);
@@ -198,10 +239,20 @@ export function TextOptions() {
       <div className="p-3 bg-muted/50 rounded-lg">
         <h3 className="text-sm font-medium text-foreground mb-2">Text Tool</h3>
         <ul className="text-xs text-muted-foreground space-y-1">
-          <li>• Click on canvas to create new text</li>
+          <li>• Click &quot;Add Text&quot; to create text in center</li>
           <li>• Click on text to select it</li>
           <li>• Edit text content in the panel below</li>
         </ul>
+      </div>
+
+      <Separator />
+
+      {/* Add Text Button */}
+      <div>
+        <Button onClick={handleAddText} className="w-full rounded-full" size="lg">
+          <Plus className="h-4 w-4 mr-2" />
+          Add Text
+        </Button>
       </div>
 
       {/* Text Content Editor */}

@@ -72,14 +72,7 @@ export const CanvasStage = () => {
     setShapes
   });
 
-  const shapeLogic = useShapeLogic({
-    position,
-    scale,
-    isDrawing,
-    setIsDrawing,
-    setShapes
-  });
-
+  const shapeLogic = useShapeLogic();
   const selectionLogic = useSelectionLogic({
     position,
     scale
@@ -192,8 +185,6 @@ export const CanvasStage = () => {
   const handleMouseMove = (e: KonvaEventObject<MouseEvent>) => {
     if (isSelect) {
       selectionLogic.handleSelectionMouseMove(e);
-    } else if (isShapes) {
-      shapeLogic.handleShapeMouseMove(e);
     } else {
       drawingLogic.handleDrawMouseMove(e);
     }
@@ -202,8 +193,6 @@ export const CanvasStage = () => {
   const handleMouseUp = (e: KonvaEventObject<MouseEvent>) => {
     if (isSelect) {
       selectionLogic.handleSelectionMouseUp(e);
-    } else if (isShapes) {
-      shapeLogic.handleShapeMouseUp();
     } else if (isText) {
       textLogic.handleTextMouseUp();
     } else {

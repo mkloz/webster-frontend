@@ -1,10 +1,12 @@
 'use client';
 
-import { Circle, Hexagon, MoveDown, MoveUp, Square, Star, Trash2, Triangle } from 'lucide-react';
+import { Circle, Hexagon, MoveDown, MoveUp, Plus, Square, Star, Trash2, Triangle } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useEffect } from 'react';
 import { IoAnalyticsOutline } from 'react-icons/io5';
 import { toast } from 'sonner';
+
+import { useCanvasStore } from '@/shared/store/canvas-store';
 
 import { ColorPicker } from '../../../../shared/components/common/color-picker';
 import { EnhancedSlider } from '../../../../shared/components/common/enhanced-slider';
@@ -12,8 +14,10 @@ import { Button } from '../../../../shared/components/ui/button';
 import { Separator } from '../../../../shared/components/ui/separator';
 import { Switch } from '../../../../shared/components/ui/switch';
 import { cn } from '../../../../shared/lib/utils';
+import type { Shape } from '../../hooks/shapes-store';
 import { useShapesStore } from '../../hooks/shapes-store';
 import { type Shapes, useToolOptionsStore } from '../../hooks/tool-optios-store';
+import { useCanvasHistory } from '../../hooks/use-canvas-history';
 
 export const SHAPES: Array<{ value: Shapes; label: string; icon: ReactNode }> = [
   { value: 'rectangle', label: 'Rectangle', icon: <Square /> },
@@ -29,6 +33,8 @@ export const ShapesOptions = () => {
     useToolOptionsStore((s) => s.shape);
   const { setToolOptions } = useToolOptionsStore();
   const { shapes, updateShape, selectedShapeIds, setSelectedShapeIds, setShapes } = useShapesStore();
+  const { width, height } = useCanvasStore();
+  const { saveToHistory } = useCanvasHistory();
 
   // Find the selected shape if any
   const selectedShape = selectedShapeId
@@ -65,6 +71,65 @@ export const ShapesOptions = () => {
       });
     }
   }, [selectedShape, setToolOptions]);
+
+  // Add shape in center of canvas
+  const handleAddShape = () => {
+    const centerX = width / 2;
+    const centerY = height / 2;
+
+    // Create a base shape object with common properties
+    const baseShape = {
+      id: String(Date.now()),
+      x: centerX,
+      y: centerY,
+      size: useToolOptionsStore.getState().shape.shapeSize,
+      color: fillColor,
+      opacity: 1,
+      fillColor: fillColor,
+      fillOpacity: fillOpacity,
+      strokeColor: strokeColor,
+      strokeWidth: strokeWidth,
+      showStroke: showStroke,
+      shouldFill: shouldFill,
+      width: useToolOptionsStore.getState().shape.shapeSize,
+      height: useToolOptionsStore.getState().shape.shapeSize
+    };
+
+    let newShape: Shape;
+
+    // For star shapes, we'll use scaleX and scaleY for deformation
+    if (shapeType === 'star') {
+      newShape = {
+        ...baseShape,
+        type: 'star' as const,
+        scaleX: 1,
+        scaleY: 1
+      };
+    } else if (shapeType === 'line') {
+      // For lines, create a horizontal line in the center
+      const lineLength = baseShape.size;
+      newShape = {
+        ...baseShape,
+        type: 'line' as const,
+        x2: centerX + lineLength / 2,
+        y2: centerY
+      };
+    } else {
+      // For other shapes
+      newShape = {
+        ...baseShape,
+        type: shapeType
+      };
+    }
+
+    setShapes((prev) => [...prev, newShape]);
+
+    // Select the new shape and save to history
+    setSelectedShapeIds([newShape.id]);
+    setToolOptions('shape', { selectedShapeId: newShape.id });
+    saveToHistory(`Create ${shapeType}`);
+    toast.success(`${shapeType.charAt(0).toUpperCase() + shapeType.slice(1)} added to canvas`);
+  };
 
   const setActiveShape = (value: Shapes) => {
     setToolOptions('shape', { shapeType: value });
@@ -149,7 +214,7 @@ export const ShapesOptions = () => {
       <div className="p-3 bg-muted/50 rounded-lg">
         <h3 className="text-sm font-medium text-foreground mb-2">Shape Tool</h3>
         <ul className="text-xs text-muted-foreground space-y-1">
-          <li>• Click on canvas to create new shapes</li>
+          <li>• Select shape type and click &quot;Add Shape&quot; </li>
           <li>• Click on a shape to select and edit it</li>
           <li>• Use the controls below to modify properties</li>
         </ul>
@@ -185,6 +250,16 @@ export const ShapesOptions = () => {
             </Button>
           ))}
         </div>
+      </div>
+
+      <Separator />
+
+      {/* Add Shape Button */}
+      <div>
+        <Button onClick={handleAddShape} className="w-full rounded-full" size="lg">
+          <Plus className="h-4 w-4 mr-2" />
+          Add {shapeType.charAt(0).toUpperCase() + shapeType.slice(1)}
+        </Button>
       </div>
 
       <Separator />
@@ -333,7 +408,7 @@ export const ShapesOptions = () => {
 
       {!selectedShape && (
         <div className="p-4 text-center text-sm text-muted-foreground rounded-md border border-dashed mt-4">
-          No shape selected. Click on a shape to select and edit it, or click on the canvas to create a new shape.
+          No shape selected. Click on a shape to select and edit it, or use &quot;Add Shape&quot; to create a new one.
         </div>
       )}
     </div>

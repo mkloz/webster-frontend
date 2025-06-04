@@ -40,8 +40,6 @@ export const useTextLogic = ({ position, scale, isDrawing, setIsDrawing, setShap
       const pos = e.target.getStage()?.getPointerPosition();
       if (!pos) return;
 
-      const relativePos = getRelativePosition(pos);
-
       // Check if we clicked on any shape element (not just text)
       const clickedNode = e.target;
       if (clickedNode !== e.currentTarget) {
@@ -49,61 +47,9 @@ export const useTextLogic = ({ position, scale, isDrawing, setIsDrawing, setShap
         if (shapeId) {
           // Select any shape type
           setSelectedShapeIds([shapeId]);
-
-          // Set tool options based on shape type
-          const nodeType = clickedNode.getClassName();
-          if (nodeType === 'Text') {
-            setToolOptions('text', { selectedTextId: shapeId });
-          } else {
-            // Clear text-specific selection when selecting other shapes
-            setToolOptions('text', { selectedTextId: null });
-          }
-
           e.cancelBubble = true;
           return;
         }
-      }
-
-      // Only create text if clicking on empty space and within canvas bounds
-      if (
-        e.target === e.currentTarget &&
-        !isDrawing &&
-        relativePos.x >= 0 &&
-        relativePos.x <= width &&
-        relativePos.y >= 0 &&
-        relativePos.y <= height
-      ) {
-        const newTextId = Date.now().toString();
-        const newText: Shape = {
-          id: newTextId,
-          type: 'text',
-          x: relativePos.x,
-          y: relativePos.y,
-          text: 'Text',
-          fontSize: textOptions.fontSize,
-          fontFamily: textOptions.fontFamily,
-          fontStyles: textOptions.fontStyles,
-          align: textOptions.align,
-          width: textOptions.width,
-          padding: textOptions.padding,
-          color: textOptions.textColor,
-          size: textOptions.fontSize,
-          opacity: 1
-        };
-
-        setShapes((prevShapes) => [...prevShapes, newText]);
-        setIsDrawing(true);
-
-        // Select the new text element
-        setSelectedShapeIds([newTextId]);
-        setToolOptions('text', { selectedTextId: newTextId });
-
-        // Save to history
-        saveToHistory('Create text');
-      } else if (e.target === e.currentTarget) {
-        // If clicking on empty space, deselect
-        setSelectedShapeIds([]);
-        setToolOptions('text', { selectedTextId: null });
       }
     },
     [

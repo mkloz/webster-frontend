@@ -178,7 +178,7 @@ export const ImageOptions = () => {
         <h3 className="text-sm font-medium text-foreground mb-2">Image Tool</h3>
         <ul className="text-xs text-muted-foreground space-y-1">
           <li>• Upload an image or paste a URL</li>
-          <li>• Click on canvas to place the image</li>
+          <li>• Image will be added to the canvas </li>
           <li>• Click on an image to select and edit it</li>
         </ul>
       </div>

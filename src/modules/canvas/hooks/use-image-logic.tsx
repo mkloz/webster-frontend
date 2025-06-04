@@ -2,7 +2,7 @@
 
 import type { KonvaEventObject } from 'konva/lib/Node';
 import type React from 'react';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef } from 'react';
 import { toast } from 'sonner';
 
 import { useCanvasStore } from '@/shared/store/canvas-store';
@@ -25,24 +25,12 @@ interface ImageLogicProps {
   setShapes: React.Dispatch<React.SetStateAction<Shape[]>>;
 }
 
-export const useImageLogic = ({ position, scale, setShapes }: ImageLogicProps) => {
+export const useImageLogic = ({ setShapes }: ImageLogicProps) => {
   const { width, height } = useCanvasStore();
   const { setToolOptions } = useToolOptionsStore();
   const { selectedShapeIds, setSelectedShapeIds, updateShape } = useShapesStore();
   const { saveToHistory } = useCanvasHistory();
-  const [pendingImage, setPendingImage] = useState<{ element: HTMLImageElement; url: string } | null>(null);
   const imageCache = useRef<Map<string, HTMLImageElement>>(new Map());
-
-  // Convert screen coordinates to canvas coordinates
-  const getRelativePosition = useCallback(
-    (pos: { x: number; y: number }) => {
-      return {
-        x: (pos.x - position.x) / scale,
-        y: (pos.y - position.y) / scale
-      };
-    },
-    [position, scale]
-  );
 
   // Load an image from a URL with proper error handling
   const loadImage = useCallback((url: string): Promise<HTMLImageElement> => {
@@ -73,7 +61,10 @@ export const useImageLogic = ({ position, scale, setShapes }: ImageLogicProps) =
   const uploadImageToServer = useCallback(
     async (file: File): Promise<{ url: string; element: HTMLImageElement }> => {
       try {
+        // Upload to server
         const uploadResult = await FileUploadService.upload(file);
+
+        // Load the image element from the server URL
         const imageElement = await loadImage(uploadResult.url);
 
         return {
@@ -86,6 +77,70 @@ export const useImageLogic = ({ position, scale, setShapes }: ImageLogicProps) =
       }
     },
     [loadImage]
+  );
+
+  // Add a function to place an image in the center of the canvas
+  const placeImageInCenter = useCallback(
+    (imageElement: HTMLImageElement, url: string) => {
+      const centerX = width / 2;
+      const centerY = height / 2;
+      const imageId = Date.now().toString();
+
+      // Calculate size while maintaining aspect ratio
+      const maxSize = Math.min(width, height) * 0.8;
+      const aspectRatio = imageElement.naturalWidth / imageElement.naturalHeight;
+
+      let imageWidth = imageElement.naturalWidth;
+      let imageHeight = imageElement.naturalHeight;
+
+      // Scale down large images
+      if (imageWidth > maxSize || imageHeight > maxSize) {
+        if (aspectRatio > 1) {
+          imageWidth = maxSize;
+          imageHeight = maxSize / aspectRatio;
+        } else {
+          imageHeight = maxSize;
+          imageWidth = maxSize * aspectRatio;
+        }
+      }
+
+      // Create new image shape with server URL
+      const newImage: Shape = {
+        id: imageId,
+        type: 'image',
+        x: centerX,
+        y: centerY,
+        size: Math.max(imageWidth, imageHeight),
+        width: imageWidth,
+        height: imageHeight,
+        originalWidth: imageElement.naturalWidth,
+        originalHeight: imageElement.naturalHeight,
+        imageUrl: url, // Use server URL
+        imageElement: imageElement,
+        color: 'transparent',
+        opacity: 1,
+        flipX: false,
+        flipY: false,
+        rotation: 0,
+        scaleX: 1,
+        scaleY: 1,
+        cropActive: false
+      };
+
+      // Add to shapes
+      setShapes((prevShapes) => [...prevShapes, newImage]);
+
+      // Select the new image
+      setSelectedShapeIds([imageId]);
+      setToolOptions('image', { selectedImageId: imageId });
+
+      // Save to history
+      saveToHistory('Place image');
+
+      // Show success message
+      toast.success('Image added to canvas');
+    },
+    [width, height, setShapes, setSelectedShapeIds, setToolOptions, saveToHistory]
   );
 
   // Handle file upload
@@ -115,11 +170,8 @@ export const useImageLogic = ({ position, scale, setShapes }: ImageLogicProps) =
 
         setToolOptions('image', { isUploading: false, uploadProgress: 100 });
 
-        // Set as pending image to be placed on canvas
-        setPendingImage({ element, url });
-
-        // Show success message
-        toast.success('Image ready to place. Click on canvas to position it.');
+        // Automatically place image in center
+        placeImageInCenter(element, url);
 
         setTimeout(() => {
           setToolOptions('image', { uploadProgress: 0 });
@@ -130,7 +182,7 @@ export const useImageLogic = ({ position, scale, setShapes }: ImageLogicProps) =
         console.error(error);
       }
     },
-    [uploadImageToServer, setToolOptions]
+    [uploadImageToServer, setToolOptions, placeImageInCenter]
   );
 
   // Handle URL import
@@ -180,11 +232,8 @@ export const useImageLogic = ({ position, scale, setShapes }: ImageLogicProps) =
 
         setToolOptions('image', { isUploading: false, uploadProgress: 100 });
 
-        // Set as pending image to be placed on canvas
-        setPendingImage({ element, url: serverUrl });
-
-        // Show success message
-        toast.success('Image ready to place. Click on canvas to position it.');
+        // Automatically place image in center
+        placeImageInCenter(element, serverUrl);
 
         setTimeout(() => {
           setToolOptions('image', { uploadProgress: 0 });
@@ -195,111 +244,28 @@ export const useImageLogic = ({ position, scale, setShapes }: ImageLogicProps) =
         console.error(error);
       }
     },
-    [uploadImageToServer, setToolOptions]
+    [uploadImageToServer, setToolOptions, placeImageInCenter]
   );
 
-  // Handle mouse down for placing images or selecting existing shapes
+  // Handle mouse down for selecting existing images
   const handleImageMouseDown = useCallback(
     (e: KonvaEventObject<MouseEvent>) => {
-      const pos = e.target.getStage()?.getPointerPosition();
-      if (!pos) return;
-
-      // Check if we clicked on any shape element (not just images)
-      const clickedNode = e.target;
-      if (clickedNode !== e.currentTarget) {
-        const shapeId = clickedNode.id();
-        if (shapeId) {
-          // Select any shape type
-          setSelectedShapeIds([shapeId]);
-
-          // Set tool options based on shape type
-          const nodeType = clickedNode.getClassName();
-          if (nodeType === 'Image') {
-            setToolOptions('image', { selectedImageId: shapeId });
-          } else {
-            // Clear image-specific selection when selecting other shapes
-            setToolOptions('image', { selectedImageId: null });
-          }
-
-          e.cancelBubble = true;
-          return;
-        }
-      }
-
-      // Only proceed with placing if we have a pending image and clicked on empty canvas
-      if (!pendingImage || e.target !== e.currentTarget) {
-        // If clicking on empty space, deselect
-        if (e.target === e.currentTarget) {
-          setSelectedShapeIds([]);
-          setToolOptions('image', { selectedImageId: null });
-        }
+      const imageId = e.target.id();
+      if (imageId) {
+        // Select the image element
+        setSelectedShapeIds([imageId]);
+        setToolOptions('image', { selectedImageId: imageId });
+        e.cancelBubble = true;
         return;
       }
 
-      const relativePos = getRelativePosition(pos);
-
-      // Check if within canvas bounds
-      if (relativePos.x >= 0 && relativePos.x <= width && relativePos.y >= 0 && relativePos.y <= height) {
-        const imageId = Date.now().toString();
-
-        // Calculate size while maintaining aspect ratio
-        const maxSize = Math.min(width, height) * 0.8;
-        const aspectRatio = pendingImage.element.naturalWidth / pendingImage.element.naturalHeight;
-
-        let imageWidth = pendingImage.element.naturalWidth;
-        let imageHeight = pendingImage.element.naturalHeight;
-
-        // Scale down large images
-        if (imageWidth > maxSize || imageHeight > maxSize) {
-          if (aspectRatio > 1) {
-            imageWidth = maxSize;
-            imageHeight = maxSize / aspectRatio;
-          } else {
-            imageHeight = maxSize;
-            imageWidth = maxSize * aspectRatio;
-          }
-        }
-
-        // Create new image shape with server URL
-        const newImage: Shape = {
-          id: imageId,
-          type: 'image',
-          x: relativePos.x,
-          y: relativePos.y,
-          size: Math.max(imageWidth, imageHeight),
-          width: imageWidth,
-          height: imageHeight,
-          originalWidth: pendingImage.element.naturalWidth,
-          originalHeight: pendingImage.element.naturalHeight,
-          imageUrl: pendingImage.url, // Use server URL
-          imageElement: pendingImage.element,
-          color: 'transparent',
-          opacity: 1,
-          flipX: false,
-          flipY: false,
-          rotation: 0,
-          scaleX: 1,
-          scaleY: 1,
-          cropActive: false
-        };
-
-        // Add to shapes
-        setShapes((prevShapes) => {
-          return [...prevShapes, newImage];
-        });
-
-        // Select the new image
-        setSelectedShapeIds([imageId]);
-        setToolOptions('image', { selectedImageId: imageId });
-
-        // Clear pending image
-        setPendingImage(null);
-
-        // Save to history
-        saveToHistory('Place image');
+      // If clicking on empty space, deselect
+      if (e.target === e.currentTarget) {
+        setSelectedShapeIds([]);
+        setToolOptions('image', { selectedImageId: null });
       }
     },
-    [pendingImage, getRelativePosition, width, height, setShapes, setSelectedShapeIds, setToolOptions, saveToHistory]
+    [setSelectedShapeIds, setToolOptions]
   );
 
   // Handle image flipping
@@ -332,7 +298,6 @@ export const useImageLogic = ({ position, scale, setShapes }: ImageLogicProps) =
       if (!selectedImageId) return;
 
       updateShape(selectedImageId, { opacity });
-      // Note: Don't save to history for opacity changes as they're continuous
     },
     [selectedShapeIds, updateShape]
   );
@@ -381,7 +346,8 @@ export const useImageLogic = ({ position, scale, setShapes }: ImageLogicProps) =
     handleFlipImage,
     handleOpacityChange,
     handleToggleCrop,
-    pendingImage: pendingImage?.element || null,
-    cleanup
+    pendingImage: null, // We no longer need the pendingImage since we place directly
+    cleanup,
+    placeImageInCenter
   };
 };
