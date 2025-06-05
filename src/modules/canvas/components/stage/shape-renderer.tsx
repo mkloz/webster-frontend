@@ -70,7 +70,8 @@ export const ShapeRenderer = ({ shape, penSmoothingValue, isSelected = false, on
     cropX,
     cropY,
     cropWidth,
-    cropHeight
+    cropHeight,
+    cropActive
   } = shape;
 
   // Get the updateShape function from the store
@@ -152,13 +153,18 @@ export const ShapeRenderer = ({ shape, penSmoothingValue, isSelected = false, on
           image={imageElement}
           width={actualWidth}
           height={actualHeight}
-          opacity={opacity * (fillOpacity || 1)}
           {...commonProps}
+          opacity={opacity}
           scaleX={(flipX ? -1 : 1) * (scaleX || 1)}
           scaleY={(flipY ? -1 : 1) * (scaleY || 1)}
           crop={
-            cropX !== undefined && cropY !== undefined && cropWidth !== undefined && cropHeight !== undefined
-              ? { x: cropX, y: cropY, width: cropWidth, height: cropHeight }
+            cropActive
+              ? {
+                  x: cropX ?? 0,
+                  y: cropY ?? 0,
+                  width: cropWidth ?? imageElement.naturalWidth,
+                  height: cropHeight ?? imageElement.naturalHeight
+                }
               : undefined
           }
           offsetX={actualWidth / 2}

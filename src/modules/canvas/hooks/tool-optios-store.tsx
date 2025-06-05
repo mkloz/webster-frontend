@@ -88,10 +88,10 @@ export const useToolOptionsStore = create<ToolOptionsState>((set) => ({
     eraserHardness: 100
   },
   shape: {
-    shapeColor: '#8B5CF6',
+    shapeColor: '#000000',
     shapeSize: 50,
     shapeType: 'rectangle',
-    fillColor: '#8B5CF6',
+    fillColor: '#000000',
     fillOpacity: 0.8,
     strokeColor: '#000000',
     strokeWidth: 2,

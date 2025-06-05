@@ -109,7 +109,7 @@ export const useSelectionLogic = ({ position, scale }: UseSelectionLogicProps) =
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isSelectTool, selectedShapeIds, shapes, clearSelection, setSelectedShapeIds]);
+  }, [isSelectTool, selectedShapeIds, shapes, clearSelection, setSelectedShapeIds, setShapes]);
 
   // Convert screen coordinates to canvas coordinates
   const getCanvasCoordinates = useCallback(
@@ -124,27 +124,113 @@ export const useSelectionLogic = ({ position, scale }: UseSelectionLogicProps) =
 
   // Check if a point is inside a shape
   const isPointInShape = useCallback((point: { x: number; y: number }, shape: Shape) => {
-    const { x, y, size, type } = shape;
+    const { x, y, width, height, size, type, rotation = 0 } = shape;
+
+    // For shapes with width and height, use those instead of size
+    const shapeWidth = width || size;
+    const shapeHeight = height || size;
+
+    // If we have width and height, use half of those
+    const halfWidth = shapeWidth ? shapeWidth / 2 : size / 2;
+    const halfHeight = shapeHeight ? shapeHeight / 2 : size / 2;
+
+    // If the shape is rotated, we need to rotate the point in the opposite direction
+    let rotatedPoint = { ...point };
+    if (rotation !== 0) {
+      const radians = (rotation * Math.PI) / 180;
+      const cos = Math.cos(-radians);
+      const sin = Math.sin(-radians);
+
+      // Translate point to origin
+      const dx = point.x - x;
+      const dy = point.y - y;
+
+      // Rotate point
+      rotatedPoint = {
+        x: x + (dx * cos - dy * sin),
+        y: y + (dx * sin + dy * cos)
+      };
+    }
 
     switch (type) {
       case 'circle':
       case 'round': {
         const distance = Math.sqrt((point.x - x) ** 2 + (point.y - y) ** 2);
-        return distance <= size / 2;
+        return distance <= halfWidth;
       }
 
       case 'rectangle':
       case 'square': {
-        const halfSize = size / 2;
-        return point.x >= x - halfSize && point.x <= x + halfSize && point.y >= y - halfSize && point.y <= y + halfSize;
+        return (
+          rotatedPoint.x >= x - halfWidth &&
+          rotatedPoint.x <= x + halfWidth &&
+          rotatedPoint.y >= y - halfHeight &&
+          rotatedPoint.y <= y + halfHeight
+        );
+      }
+
+      case 'line': {
+        // For lines, we check if the point is close to the line segment
+        // First, get the line endpoints
+        const x1 = x - halfWidth;
+        const y1 = y - halfHeight;
+        const x2 = x + halfWidth;
+        const y2 = y + halfHeight;
+
+        // Calculate distance from point to line segment
+        const A = rotatedPoint.x - x1;
+        const B = rotatedPoint.y - y1;
+        const C = x2 - x1;
+        const D = y2 - y1;
+
+        const dot = A * C + B * D;
+        const lenSq = C * C + D * D;
+        let param = -1;
+
+        if (lenSq !== 0) param = dot / lenSq;
+
+        let xx, yy;
+
+        if (param < 0) {
+          xx = x1;
+          yy = y1;
+        } else if (param > 1) {
+          xx = x2;
+          yy = y2;
+        } else {
+          xx = x1 + param * C;
+          yy = y1 + param * D;
+        }
+
+        const dx = rotatedPoint.x - xx;
+        const dy = rotatedPoint.y - yy;
+
+        // Distance threshold - adjust as needed for easier selection
+        const threshold = Math.max(5, shape.strokeWidth || 2);
+        return Math.sqrt(dx * dx + dy * dy) <= threshold;
       }
 
       case 'star':
       case 'triangle':
       case 'hexagon': {
         // Use bounding box check for complex shapes
-        const halfSize = size / 2;
-        return point.x >= x - halfSize && point.x <= x + halfSize && point.y >= y - halfSize && point.y <= y + halfSize;
+        return (
+          rotatedPoint.x >= x - halfWidth &&
+          rotatedPoint.x <= x + halfWidth &&
+          rotatedPoint.y >= y - halfHeight &&
+          rotatedPoint.y <= y + halfHeight
+        );
+      }
+
+      case 'text':
+      case 'image': {
+        // For text and images, use their width and height
+        return (
+          rotatedPoint.x >= x - halfWidth &&
+          rotatedPoint.x <= x + halfWidth &&
+          rotatedPoint.y >= y - halfHeight &&
+          rotatedPoint.y <= y + halfHeight
+        );
       }
 
       default:
@@ -156,15 +242,19 @@ export const useSelectionLogic = ({ position, scale }: UseSelectionLogicProps) =
   const getShapesInBox = useCallback(
     (box: SelectionBox) => {
       return shapes.filter((shape) => {
-        const { x, y, size } = shape;
-        const halfSize = size / 2;
+        // Use width/height if available, otherwise use size
+        const shapeWidth = shape.width || shape.size;
+        const shapeHeight = shape.height || shape.size;
+
+        const halfWidth = shapeWidth ? shapeWidth / 2 : shape.size / 2;
+        const halfHeight = shapeHeight ? shapeHeight / 2 : shape.size / 2;
 
         // Check if shape overlaps with selection box
         return (
-          x + halfSize >= box.x &&
-          x - halfSize <= box.x + box.width &&
-          y + halfSize >= box.y &&
-          y - halfSize <= box.y + box.height
+          shape.x + halfWidth >= box.x &&
+          shape.x - halfWidth <= box.x + box.width &&
+          shape.y + halfHeight >= box.y &&
+          shape.y - halfHeight <= box.y + box.height
         );
       });
     },

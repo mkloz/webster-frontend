@@ -290,7 +290,10 @@ export const ShapesOptions = () => {
           <span className="text-sm text-foreground">Fill Shape</span>
           <Switch checked={selectedShape?.shouldFill ?? shouldFill} onCheckedChange={setShouldFill} />
         </div>
-        <ColorPicker value={selectedShape?.fillColor || selectedShape?.color || fillColor} onChange={setFillColor} />
+        <ColorPicker
+          value={selectedShape?.fillColor || selectedShape?.color || selectedShape?.strokeColor || fillColor}
+          onChange={setFillColor}
+        />
       </div>
 
       <div>

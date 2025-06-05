@@ -10,6 +10,7 @@ interface UserAvatarProps {
   } | null;
   className?: string;
 }
+
 const getInitials = (fullName?: string | null) => {
   if (!fullName) return '';
 
@@ -32,15 +33,19 @@ const AvatarFallback: FC<UserAvatarProps> = ({ user }) => {
 };
 
 export const UserAvatar: FC<UserAvatarProps> = ({ className, user }) => {
+  // Force re-render when avatar URL changes by using it as a key
+  const avatarKey = user?.avatar ? `avatar-${user.avatar}` : 'no-avatar';
+
   return (
     <Image
+      key={avatarKey}
       src={user?.avatar || ''}
       alt={user?.name || ''}
       className={cn('rounded-full w-full h-full object-cover object-center', className)}
       noImageComponent={<AvatarFallback user={user} />}
       fallbackComponent={<AvatarFallback user={user} />}
       wrapperClassName={cn(
-        'rounded-full overflow-hidden aspect-square  hover:brightness-95 transition-colors border-transparent outline-2 outline-primary',
+        'rounded-full overflow-hidden aspect-square hover:brightness-95 transition-colors border-transparent outline-2 outline-primary',
         className
       )}
     />

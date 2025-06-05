@@ -130,6 +130,33 @@ export const useTransformer = ({ selectedShapeIds, stageRef }: UseTransformerPro
           const textLines = (shape.text || '').split('\n').length;
           textNode.height(lineHeight * Math.max(1, textLines));
         }
+      } else if (shape.type === 'image' && shape.cropActive) {
+        // For images in crop mode, we adjust the crop parameters
+        const originalCropWidth = shape.cropWidth || shape.originalWidth || width;
+        const originalCropHeight = shape.cropHeight || shape.originalHeight || height;
+
+        // Calculate new crop dimensions
+        const newCropWidth = originalCropWidth * scaleX;
+        const newCropHeight = originalCropHeight * scaleY;
+
+        updateShape(shapeId, {
+          x,
+          y,
+          rotation,
+          // Update crop values based on scale
+          cropWidth: newCropWidth,
+          cropHeight: newCropHeight,
+          // Keep the display size the same as the crop size
+          width: newCropWidth,
+          height: newCropHeight,
+          // Reset scale to 1 after applying to crop dimensions
+          scaleX: 1,
+          scaleY: 1
+        });
+
+        // Reset the node's scale
+        node.scaleX(1);
+        node.scaleY(1);
       } else if (shape.type === 'image') {
         // For images, update dimensions directly
         updateShape(shapeId, {

@@ -27,9 +27,6 @@ export const AvatarUpload = ({ user }: AvatarUploadProps) => {
     onSuccess: () => {
       queryClient.invalidateQueries(userGroupOptions());
       toast.success('Avatar updated successfully');
-    },
-    onError: (error) => {
-      toast.error('Failed to upload avatar: ' + (error instanceof Error ? error.message : 'Unknown error'));
     }
   });
 
