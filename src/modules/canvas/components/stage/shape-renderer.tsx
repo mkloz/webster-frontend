@@ -152,7 +152,7 @@ export const ShapeRenderer = ({ shape, penSmoothingValue, isSelected = false, on
           image={imageElement}
           width={actualWidth}
           height={actualHeight}
-          opacity={opacity}
+          opacity={opacity * (fillOpacity || 1)}
           {...commonProps}
           scaleX={(flipX ? -1 : 1) * (scaleX || 1)}
           scaleY={(flipY ? -1 : 1) * (scaleY || 1)}
@@ -234,7 +234,7 @@ export const ShapeRenderer = ({ shape, penSmoothingValue, isSelected = false, on
           radiusX={actualWidth / 2}
           radiusY={actualHeight / 2}
           fill={shouldFill ? fillColor || color : undefined}
-          opacity={opacity}
+          opacity={shouldFill ? opacity * fillOpacity : opacity}
           {...commonProps}
         />
       );
@@ -248,7 +248,7 @@ export const ShapeRenderer = ({ shape, penSmoothingValue, isSelected = false, on
           width={actualWidth}
           height={actualHeight}
           fill={shouldFill ? fillColor || color : undefined}
-          opacity={opacity}
+          opacity={shouldFill ? opacity * fillOpacity : opacity}
           {...commonProps}
           offsetX={actualWidth / 2}
           offsetY={actualHeight / 2}
@@ -265,7 +265,7 @@ export const ShapeRenderer = ({ shape, penSmoothingValue, isSelected = false, on
           innerRadius={baseSize / 4}
           outerRadius={baseSize / 2}
           fill={shouldFill ? fillColor || color : undefined}
-          opacity={opacity}
+          opacity={shouldFill ? opacity * fillOpacity : opacity}
           {...commonProps}
         />
       );
@@ -280,7 +280,7 @@ export const ShapeRenderer = ({ shape, penSmoothingValue, isSelected = false, on
           points={[0, -halfHeight, -halfWidth, halfHeight, halfWidth, halfHeight]}
           closed
           fill={shouldFill ? fillColor || color : undefined}
-          opacity={opacity}
+          opacity={shouldFill ? opacity * fillOpacity : opacity}
           {...commonProps}
         />
       );
@@ -300,7 +300,7 @@ export const ShapeRenderer = ({ shape, penSmoothingValue, isSelected = false, on
           points={points}
           closed
           fill={shouldFill ? fillColor || color : undefined}
-          opacity={opacity}
+          opacity={shouldFill ? opacity * fillOpacity : opacity}
           {...commonProps}
         />
       );
@@ -314,7 +314,7 @@ export const ShapeRenderer = ({ shape, penSmoothingValue, isSelected = false, on
           closed
           points={shape.points || []}
           fill={shape.color}
-          opacity={shape.opacity}
+          opacity={shouldFill ? shape.opacity * (shape.fillOpacity || 1) : shape.opacity}
           globalCompositeOperation={isEraser ? 'destination-out' : 'source-over'}
           listening={false}
           // Apply smoothness to fountain pen polygons
