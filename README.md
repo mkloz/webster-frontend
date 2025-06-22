@@ -3,16 +3,24 @@
 </p>
 <p align="center">
     <h1 align="center">Webster</h1>
+<!-- Project Links -->
+<p align="center">
+  <a href="https://webster.mkloz.com">🌐 Website</a> |
+  <a href="https://api.mkloz.com/webster/api/docs">🛠️ API Docs</a> |
+  <a href="https://github.com/mkloz/webster-frontend">💻 Frontend Code</a>
+</p>
 </p>
 <p align="center">
     <em>Design Without Limits</em>
 </p>
 <p align="center">
-    <img src="https://img.shields.io/github/license/yourusername/webster-frontend?style=flat&color=0080ff" alt="license">
-    <img src="https://img.shields.io/github/last-commit/yourusername/webster-frontend?style=flat&logo=git&logoColor=white&color=0080ff" alt="last-commit">
-    <img src="https://img.shields.io/github/languages/top/yourusername/webster-frontend?style=flat&color=0080ff" alt="repo-top-language">
-    <img src="https://img.shields.io/github/languages/count/yourusername/webster-frontend?style=flat&color=0080ff" alt="repo-language-count">
-<p>
+    <img src="https://img.shields.io/github/license/mkloz/webster-frontend?style=flat&color=0080ff" alt="license">
+    <img src="https://img.shields.io/github/last-commit/mkloz/webster-frontend?style=flat&logo=git&logoColor=white&color=0080ff" alt="last-commit">
+    <img src="https://img.shields.io/github/languages/top/mkloz/webster-frontend?style=flat&color=0080ff" alt="repo-top-language">
+    <img src="https://img.shields.io/github/languages/count/mkloz/webster-frontend?style=flat&color=0080ff" alt="repo-language-count">
+</p>
+
+
 <p align="center">
         <em>Developed with the software and tools below.</em>
 </p>
@@ -88,7 +96,7 @@ Webster is a comprehensive design tool platform that empowers teams and individu
 1. Clone the webster-frontend repository:
 
 ```sh
-git clone https://github.com/yourusername/webster-frontend
+git clone https://github.com/mkloz/webster-frontend
 ```
 
 2. Change to the project directory:
@@ -179,7 +187,7 @@ Contributions are welcome! Here are several ways you can contribute:
 2. **Clone Locally**: Clone the forked repository to your local machine using a Git client.
 
 ```sh
-git clone https://github.com/yourusername/webster-frontend
+git clone https://github.com/mkloz/webster-frontend
 ```
 
 3. **Create a New Branch**: Always work on a new branch, giving it a descriptive name.
